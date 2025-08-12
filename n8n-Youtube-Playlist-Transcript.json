@@ -1,0 +1,411 @@
+{
+  "name": "Youtube Video Summary",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        520,
+        -40
+      ],
+      "id": "61a4041e-2f98-4529-a9b3-af45f66cbfb2",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "playlist",
+        "operation": "get",
+        "playlistId": "PLpXOY-RxVRTPPVLBP6-sz6CMWxhtrI-v_",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        780,
+        -40
+      ],
+      "id": "c8ee3498-ae2a-4864-802b-916cc39702b8",
+      "name": "YouTube",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "YOUR_YOUTUBE_CREDENTIAL_ID",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list",
+          "cachedResultName": "chatgpt-4o-latest"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        460
+      ],
+      "id": "a647fbb7-df34-46ba-97fa-2eac4bc96227",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2300,
+        520
+      ],
+      "id": "d35c9a50-7dc7-470e-afe9-a6d8a506f53d",
+      "name": "Airtable"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"short_summary\": {\n      \"type\": \"string\",\n      \"description\": \"Two sentences summarizing the main topic and key takeaway\"\n    },\n    \"detailed_summary\": {\n      \"type\": \"string\", \n      \"description\": \"Three paragraphs covering introduction, main content, and conclusions\"\n    }\n  },\n  \"required\": [\"short_summary\", \"detailed_summary\"],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        460
+      ],
+      "id": "4a1fd971-4f69-42fc-9929-810cb1a95a10",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/pintostudio~youtube-transcript-scraper/run-sync-get-dataset-items",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APIFY_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "videoUrl",
+              "value": "={{ $json.message.content.video_urls[3].url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        240
+      ],
+      "id": "8a4dc109-8e4d-4e6b-8781-a13fb8b216fe",
+      "name": "Apify pintostudio get YT transcript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a YouTube playlist URL generator that extracts individual video URLs from playlist data. You specialize in:\n\n1. Parsing YouTube playlist information\n2. Generating individual video URLs following YouTube's URL structure\n3. Outputting data in clean JSON format\n4. Working with playlist metadata including itemCount\n\nAlways respond with valid JSON and follow YouTube's URL patterns exactly.",
+              "role": "system"
+            },
+            {
+              "content": "=Please help me retrieve individual video URLs from a YouTube playlist and output them in JSON format.\n\nHere's what I'm working with:\n\n**Playlist Information:**\n- Playlist URL format: https://www.youtube.com/playlist?list=PLpXOY-RxVRTPPVLBP6-sz6CMWxhtrI-v_\n- Playlist ID: {{ $json.id }} (example: PLpXOY-RxVRTPPVLBP6-sz6CMWxhtrI-v_)\n- Total video count: {{ $json.contentDetails.itemCount }}\n\n**Individual Video URL Pattern:**\nhttps://www.youtube.com/watch?v=LFKZLXVO-Dg&list={{ $json.id }}&index=1\n\n**What I need:**\nGenerate individual video URLs for each video in the playlist by incrementing the index from 1 to {{ $json.contentDetails.itemCount }}, and output everything in JSON format."
+            },
+            {
+              "content": "=I'll generate the individual YouTube video URLs from your playlist data. Here's the JSON output:\n\n```json\n{\n  \"playlist_id\": \"{{ $json.id }}\",\n  \"total_videos\": {{ $json.contentDetails.itemCount }},\n  \"video_urls\": [\n    {\n      \"index\": 1,\n      \"url\": \"https://www.youtube.com/watch?v=VIDEO_ID_1&list={{ $json.id }}&index=1\"\n    },\n    {\n      \"index\": 2,\n      \"url\": \"https://www.youtube.com/watch?v=VIDEO_ID_2&list={{ $json.id }}&index=2\"\n    }\n    // ... continuing for all {{ $json.contentDetails.itemCount }} videos\n  ]\n}",
+              "role": "assistant"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1000,
+        -40
+      ],
+      "id": "3546d6ab-1b2f-4a88-80ef-c7c63112e7c8",
+      "name": "Url Parcer: GPT4o nano",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Youtube Playlist Transcript",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{ $('YouTube').item.json.snippet.title }}",
+            "Short Summary": "={{ $json.output.short_summary }}",
+            "Detail Summary": "={{ $json.output.detailed_summary }}",
+            "Url": "={{ $('Url Parcer: GPT4o nano').item.json.message.content.video_urls[0].url }}"
+          },
+          "matchingColumns": [
+            "Url"
+          ],
+          "schema": [
+            {
+              "id": "Playlist Title",
+              "displayName": "Playlist Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Short Summary",
+              "displayName": "Short Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Detail Summary",
+              "displayName": "Detail Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Url",
+              "displayName": "Url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1160,
+        240
+      ],
+      "id": "4b809dd1-6ee3-47d3-981c-9488914748c9",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are a video content summarization specialist. Your task is to analyze video transcripts and create structured summaries with specific formatting requirements.\n\nKey responsibilities:\n- Generate exactly 2 sentences for brief summaries\n- Create exactly 3 paragraphs for detailed summaries\n- Assess transcript quality and categorize content type\n- Extract key topics and themes\n- Maintain objectivity and accuracy\n\nAlways follow the structured output format precisely and provide comprehensive analysis of the video content."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=Please analyze the following video transcript and provide a comprehensive summary:\n\n**Video Transcript:**\n{{ $json.data }}\n\n**Analysis Requirements:**\n1. Create a brief summary in exactly 2 sentences covering the main topic and key takeaway\n2. Write a detailed summary with exactly 3 paragraphs:\n   - Paragraph 1: Introduction, context, and scope\n   - Paragraph 2: Core content, main points, and details\n   - Paragraph 3: Conclusions, implications, and insights\n3. Assess the transcript quality and categorize the video type\n4. Identify up to 5 key topics discussed\n\nProvide your analysis following the structured output format."
+            },
+            {
+              "type": "AIMessagePromptTemplate",
+              "message": "=Based on the transcript provided, I'll analyze the content and provide a structured summary:\n\n**Brief Summary Analysis:**\nI'll identify the primary subject matter and the most important takeaway or conclusion from the video, condensing this into exactly two clear, informative sentences.\n\n**Detailed Summary Breakdown:**\n- **Context Setup**: I'll establish what the video covers, who's presenting, and the overall framework\n- **Content Analysis**: I'll extract the main arguments, examples, data points, and detailed explanations presented\n- **Conclusion Synthesis**: I'll capture the final thoughts, recommendations, and actionable insights\n\n**Quality Assessment:**\nI'll evaluate the transcript's clarity, completeness, and readability to provide an accurate quality rating.\n\n**Content Categorization:**\nI'll determine the video type and extract the most relevant topics discussed throughout the content.\n\n[The AI will then provide the actual analysis in the structured format]"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        740,
+        240
+      ],
+      "id": "5bbcd2fb-e761-40e1-9e53-77c33ee44238",
+      "name": "GPT 4o Summary"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube": {
+      "main": [
+        [
+          {
+            "node": "Url Parcer: GPT4o nano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GPT 4o Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "GPT 4o Summary",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify pintostudio get YT transcript": {
+      "main": [
+        [
+          {
+            "node": "GPT 4o Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Url Parcer: GPT4o nano": {
+      "main": [
+        [
+          {
+            "node": "Apify pintostudio get YT transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT 4o Summary": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "066a04d0-4771-4d4d-9f6e-e7c95c96d02e",
+  "meta": {
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "s6XAmubIH46Xx2E2",
+  "tags": []
+}
